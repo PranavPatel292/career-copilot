@@ -1,0 +1,34 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
+    "@betterdb/agent-cache": "^0.7.0",
+    "@fastify/rate-limit": "^11.0.0",
+    "@huggingface/transformers": "^4.2.0",
+    "@octokit/rest": "^22.0.1",
+    "bullmq": "^5.79.0",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.8.5",
+    "iovalkey": "^0.3.3",
+    "pg": "^8.21.0",
+    "pgvector": "^0.3.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/pg": "^8.20.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest"
+  }
+}
