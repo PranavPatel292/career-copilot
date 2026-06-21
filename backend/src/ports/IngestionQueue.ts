@@ -3,7 +3,8 @@ export type JobStatus =
   | "active"
   | "completed"
   | "failed"
-  | "delayed";
+  | "delayed"
+  | "processing";
 
 export interface JobStatusResult {
   status: JobStatus;
