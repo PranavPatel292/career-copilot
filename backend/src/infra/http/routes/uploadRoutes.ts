@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { JobStatus } from "../../../ports/IngestionQueue.js";
 import { IngestManualDocument } from "../../../use-cases/IngestManualDocument.js";
 
 const ALLOWED_EXTENSIONS = [".md", ".txt"];
@@ -10,7 +11,12 @@ export function uploadRoutes(
 ) {
   app.post("/ingest/upload", async (req, reply) => {
     const files = (req as any).files();
-    const results: { file: string; chunksStored: number }[] = [];
+    const results: {
+      file: string;
+      jobId: string;
+      documentId: string;
+      status: JobStatus;
+    }[] = [];
     const errors: { file: string; error: string }[] = [];
 
     for await (const file of files) {
@@ -49,7 +55,7 @@ export function uploadRoutes(
 
       // 4. Call the same use case — it doesn't know this came from a file
       const result = await ingest.execute(req.tenantId, title, text);
-      results.push({ file: file.filename, chunksStored: result.chunksStored });
+      results.push({ file: file.filename, ...result });
     }
 
     return reply.status(201).send({ ingested: results, errors });

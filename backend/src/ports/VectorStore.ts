@@ -22,4 +22,26 @@ export interface VectorStore {
     queryEmbedding: number[],
     topK: number,
   ): Promise<RetrievedChunk[]>;
+
+  deleteByDocument(tenantId: string, documentId: string): Promise<void>;
+
+  replaceDocumentChunks(
+    tenantId: string,
+    documentId: string,
+    chunks: {
+      id: string;
+      tenantId: string;
+      documentId: string;
+      ordinal: number;
+      text: string;
+      embedding: number[];
+    }[],
+  ): Promise<void>;
+
+  hybridSearch(
+    tenantId: string,
+    queryEmbedding: number[],
+    queryText: string,
+    topK: number,
+  ): Promise<RetrievedChunk[]>;
 }
