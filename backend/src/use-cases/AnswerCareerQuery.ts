@@ -79,7 +79,7 @@ export class AnswerCareerQuery {
     const grounded = this.extractSection(raw, "GROUNDED:");
     const suggested = this.extractSection(raw, "SUGGESTED:");
 
-    return {
+    const answer: Answer = {
       grounded: grounded || raw,
       suggested: suggested || "",
       citations: chunks.map((c) => ({
@@ -89,6 +89,11 @@ export class AnswerCareerQuery {
         score: c.score,
       })),
     };
+
+    // 8. Cache store
+    await this.cache.set(tenantId, question, answer);
+
+    return answer;
   }
 
   private extractSection(text: string, header: string): string {
