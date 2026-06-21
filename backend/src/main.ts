@@ -6,6 +6,7 @@ import { PgVectorStore } from "./infra/db/PgVectorStore.js";
 import { rateLimiter } from "./infra/http/middleware/rateLimiter.js";
 import { tenantContext } from "./infra/http/middleware/tenantContext.js";
 import { deleteRoutes } from "./infra/http/routes/deleteRoutes.js";
+import { githubRoutes } from "./infra/http/routes/githubRoutes.js";
 import { queryRoutes } from "./infra/http/routes/queryRoutes.js";
 import { statusRoutes } from "./infra/http/routes/statusRoutes.js";
 import { uploadRoutes } from "./infra/http/routes/uploadRoutes.js";
@@ -14,6 +15,7 @@ import { OllamaProvider } from "./infra/ollama/OllamaProvider.js";
 import { BullMqQueue } from "./infra/queue/BullMqQueue.js";
 import { startIngestionWorker } from "./infra/queue/IngestionWorker.js";
 import { AnswerCareerQuery } from "./use-cases/AnswerCareerQuery.js";
+import { ImportFromGitHub } from "./use-cases/ImportFromGitHub.js";
 import { IngestManualDocument } from "./use-cases/IngestManualDocument.js";
 import { ProcessIngestionJob } from "./use-cases/ProcessIngestionJob.js";
 
@@ -31,6 +33,7 @@ async function bootstrap() {
   const cache = new ValkeyCache(config.valkeyUrl);
   const llm = new OllamaProvider(config.ollamaUrl);
   const queue = new BullMqQueue(config.valkeyUrl);
+  const importGithub = new ImportFromGitHub(queue);
 
   const ingest = new IngestManualDocument(queue);
   const processJob = new ProcessIngestionJob(embedder, store, cache);
@@ -49,6 +52,7 @@ async function bootstrap() {
   queryRoutes(app, answerQuery);
   statusRoutes(app, queue);
   deleteRoutes(app, store, cache);
+  githubRoutes(app, importGithub);
   app.get("/health", async () => ({ status: "ok" }));
 
   const port = 3000;
