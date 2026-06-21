@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { RetrievedChunk, VectorStore } from "../../ports/VectorStore.js";
 
 import { db } from "./index.js";
@@ -51,5 +51,47 @@ export class PgVectorStore implements VectorStore {
       .limit(topK);
 
     return results;
+  }
+
+  // Job 3: TODO: add some doc
+  async deleteByDocument(tenantId: string, documentId: string): Promise<void> {
+    await db
+      .delete(chunks)
+      .where(
+        and(eq(chunks.tenantId, tenantId), eq(chunks.documentId, documentId)),
+      );
+  }
+
+  // Job 4: TODO: add some doc
+  async replaceDocumentChunks(
+    tenantId: string,
+    documentId: string,
+    rows: {
+      id: string;
+      tenantId: string;
+      documentId: string;
+      ordinal: number;
+      text: string;
+      embedding: number[];
+    }[],
+  ): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(chunks)
+        .where(
+          and(eq(chunks.tenantId, tenantId), eq(chunks.documentId, documentId)),
+        );
+
+      await tx.insert(chunks).values(
+        rows.map((row) => ({
+          id: row.id,
+          tenantId: row.tenantId,
+          documentId: row.documentId,
+          ordinal: row.ordinal,
+          text: row.text,
+          embedding: row.embedding,
+        })),
+      );
+    });
   }
 }
