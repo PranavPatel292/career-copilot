@@ -2,6 +2,7 @@ import type { Answer } from "../domain/entities.js";
 import { checkInput } from "../domain/inputGuard.js";
 import type { EmbeddingProvider } from "../ports/EmbeddingProvider.js";
 import type { LlmProvider } from "../ports/LlmProvider.js";
+import { ResponseCache } from "../ports/ResponseCache.js";
 import type { VectorStore } from "../ports/VectorStore.js";
 
 export class AnswerCareerQuery {
@@ -9,6 +10,7 @@ export class AnswerCareerQuery {
     private embedder: EmbeddingProvider,
     private store: VectorStore,
     private llm: LlmProvider,
+    private cache: ResponseCache,
     private maxQuestionTokens: number = 500,
     private maxAnswerTokens: number = 600,
   ) {}
@@ -22,13 +24,17 @@ export class AnswerCareerQuery {
       throw new Error(guard.reason);
     }
 
-    // 2. Embed the question (port)
+    // 2. Cache check
+    const cached = await this.cache.get(tenantId, question);
+    if (cached) return cached;
+
+    // 3. Embed the question (port)
     const [queryVec] = await this.embedder.embed([question]);
 
-    // 3. Retrieve top-k chunks scoped to this tenant (port)
+    // 4. Retrieve top-k chunks scoped to this tenant (port)
     const chunks = await this.store.search(tenantId, queryVec, 3);
 
-    // 4. Build the two-layer prompt
+    // 5. Build the two-layer prompt
     const context = chunks.length
       ? chunks.map((c) => c.text).join("\n")
       : "(no relevant entries found in this knowledge base)";
@@ -61,10 +67,10 @@ export class AnswerCareerQuery {
 
         Do not explain your reasoning. Do not repeat the rules. Just answer directly.`;
 
-    // 5. Generate (port — doesn't know if it's Ollama or Claude)
+    // 6. Generate (port — doesn't know if it's Ollama or Claude)
     const raw = await this.llm.generate(system, question, this.maxAnswerTokens);
 
-    // 6. Parse into structured answer
+    // 7. Parse into structured answer
     const grounded = this.extractSection(raw, "GROUNDED:");
     const suggested = this.extractSection(raw, "SUGGESTED:");
 

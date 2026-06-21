@@ -1,6 +1,7 @@
 import multipart from "@fastify/multipart";
 import Fastify from "fastify";
 import { config } from "./config/index.js";
+import { ValkeyCache } from "./infra/cache/ValkeyCache.js";
 import { PgVectorStore } from "./infra/db/PgVectorStore.js";
 import { rateLimiter } from "./infra/http/middleware/rateLimiter.js";
 import { tenantContext } from "./infra/http/middleware/tenantContext.js";
@@ -26,15 +27,17 @@ async function bootstrap() {
 
   const embedder = new LocalEmbeddingProvider();
   const store = new PgVectorStore();
+  const cache = new ValkeyCache(config.valkeyUrl);
   const llm = new OllamaProvider(config.ollamaUrl);
   const queue = new BullMqQueue(config.valkeyUrl);
 
   const ingest = new IngestManualDocument(queue);
-  const processJob = new ProcessIngestionJob(embedder, store);
+  const processJob = new ProcessIngestionJob(embedder, store, cache);
   const answerQuery = new AnswerCareerQuery(
     embedder,
     store,
     llm,
+    cache,
     config.limits.maxQuestionTokens,
     config.limits.maxAnswerTokens,
   );
