@@ -5,6 +5,7 @@ import { ValkeyCache } from "./infra/cache/ValkeyCache.js";
 import { PgVectorStore } from "./infra/db/PgVectorStore.js";
 import { rateLimiter } from "./infra/http/middleware/rateLimiter.js";
 import { tenantContext } from "./infra/http/middleware/tenantContext.js";
+import { deleteRoutes } from "./infra/http/routes/deleteRoutes.js";
 import { queryRoutes } from "./infra/http/routes/queryRoutes.js";
 import { statusRoutes } from "./infra/http/routes/statusRoutes.js";
 import { uploadRoutes } from "./infra/http/routes/uploadRoutes.js";
@@ -47,6 +48,7 @@ async function bootstrap() {
   uploadRoutes(app, ingest);
   queryRoutes(app, answerQuery);
   statusRoutes(app, queue);
+  deleteRoutes(app, store, cache);
   app.get("/health", async () => ({ status: "ok" }));
 
   const port = 3000;
