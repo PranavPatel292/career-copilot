@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { chunkText } from "../domain/chunker.js";
+import { deriveDocumentId } from "../domain/documentId.js";
+import { normalizeText } from "../domain/normalizer.js";
 import type { EmbeddingProvider } from "../ports/EmbeddingProvider.js";
 import type { VectorStore } from "../ports/VectorStore.js";
 
@@ -14,10 +16,11 @@ export class IngestManualDocument {
     title: string,
     text: string,
   ): Promise<{ chunksStored: number }> {
-    const documentId = randomUUID();
+    const documentId = deriveDocumentId(tenantId, title);
+    const cleaned = normalizeText(text);
 
     // 1. Chunk (domain logic)
-    const chunks = await chunkText(text);
+    const chunks = await chunkText(cleaned);
 
     // 2. Embed (port — doesn't know if it's local or Voyage)
     const embeddings = await this.embedder.embed(chunks);
@@ -32,7 +35,7 @@ export class IngestManualDocument {
       embedding: embeddings[i],
     }));
 
-    await this.store.upsert(rows);
+    await this.store.replaceDocumentChunks(tenantId, documentId, rows);
 
     return { chunksStored: rows.length };
   }

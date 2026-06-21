@@ -14,6 +14,8 @@ export class AnswerCareerQuery {
   ) {}
 
   async execute(tenantId: string, question: string): Promise<Answer> {
+    const CONFIDENCE_THRESHOLD = 0.15;
+
     // 1. Guard (domain — no external calls)
     const guard = checkInput(question, this.maxQuestionTokens);
     if (!guard.ok) {
@@ -30,6 +32,19 @@ export class AnswerCareerQuery {
     const context = chunks.length
       ? chunks.map((c) => c.text).join("\n")
       : "(no relevant entries found in this knowledge base)";
+
+    // TODO: don't run the step 2 of calling LLM if no info found in KB. Instead,
+    // we can run the KB again with some modification of the search and if that fails return
+    // data to user without doing anything else.
+    const topScore = chunks[0]?.score ?? 0;
+    if (topScore < CONFIDENCE_THRESHOLD) {
+      return {
+        grounded:
+          "I don't have enough information in the knowledge base to answer this confidently.",
+        suggested: "",
+        citations: [],
+      };
+    }
 
     const system = `You are a career copilot. Use ONLY the CONTEXT below to answer.
 
