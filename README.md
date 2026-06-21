@@ -1,13 +1,13 @@
 # Career Copilot
 
-A production-architected RAG (Retrieval-Augmented Generation) career assistant that turns your real work — resume, project docs, and GitHub repositories — into a curated, queryable knowledge base with two-layer AI answers.
+A production-architected RAG (Retrieval-Augmented Generation) career assistant that turns your real work - resume, project docs, and GitHub repositories - into a curated, queryable knowledge base with two-layer AI answers.
 
 ## What it does
 
 Upload your documents or connect your GitHub. Ask a question. Career Copilot retrieves the most relevant slices of your actual experience and answers in two clearly separated layers:
 
-- **Grounded** — strictly from your knowledge base, with citations.
-- **Suggested** — the model reasons on top (adjacent technologies, roles, "why"), clearly marked as inference.
+- **Grounded** - strictly from your knowledge base, with citations.
+- **Suggested** - the model reasons on top (adjacent technologies, roles, "why"), clearly marked as inference.
 
 ```
 POST /query
@@ -20,7 +20,7 @@ POST /query
 
 ## Why this exists
 
-A resume is a lossy 1–2 page compression of years of work. GitHub is the high-bandwidth, harder-to-fake record — but raw, it's noisy. This tool turns sprawling real work into a curated judging point, with retrieval quality you can trace and verify.
+A resume is a lossy 1–2 page compression of years of work. GitHub is the high-bandwidth, harder-to-fake record - but raw, it's noisy. This tool turns sprawling real work into a curated judging point, with retrieval quality you can trace and verify.
 
 Built as a hands-on RAG + systems-design project with production-grade patterns: clean architecture, event-driven ingestion, hybrid retrieval, transactional writes, and cache invalidation.
 
@@ -28,13 +28,13 @@ Built as a hands-on RAG + systems-design project with production-grade patterns:
 
 ```
 src/
-  domain/         # Pure business rules — zero dependencies
+  domain/         # Pure business rules - zero dependencies
     ├── entities.ts
     ├── chunker.ts          # Text splitting (LangChain RecursiveCharacterTextSplitter)
     ├── normalizer.ts       # Text cleaning before chunking
     ├── inputGuard.ts       # Profanity + injection detection (obscenity)
     └── documentId.ts       # Deterministic document identity
-  use-cases/      # Orchestrators — import ports only, never adapters
+  use-cases/      # Orchestrators - import ports only, never adapters
     ├── IngestManualDocument.ts   # Enqueues ingestion job
     ├── ProcessIngestionJob.ts    # Worker: normalize → chunk → embed → store
     ├── AnswerCareerQuery.ts      # Guard → cache → retrieve → generate
@@ -46,7 +46,7 @@ src/
     ├── IngestionQueue.ts
     ├── ResponseCache.ts
     └── ContentModerator.ts
-  infra/          # Adapters — the only place SDKs and frameworks live
+  infra/          # Adapters - the only place SDKs and frameworks live
     ├── db/                 # PgVectorStore (Drizzle + pgvector)
     ├── ollama/             # OllamaProvider (local LLM)
     ├── queue/              # BullMqQueue + IngestionWorker
@@ -54,7 +54,7 @@ src/
     ├── github/             # GitHubConnector (Octokit)
     └── http/               # Fastify routes + middleware
   config/         # Environment-driven wiring
-  main.ts         # Composition root — the only file that imports adapters
+  main.ts         # Composition root - the only file that imports adapters
 ```
 
 **Dependencies point inward.** Domain and use cases never import infra. Swapping pgvector for Aurora, Ollama for Claude, or BullMQ for another queue = one adapter change, zero use-case changes.
@@ -67,7 +67,7 @@ src/
 | Vector store       | PostgreSQL + pgvector (HNSW index)                        |
 | Full-text search   | PostgreSQL tsvector (BM25 scoring)                        |
 | Embeddings         | Transformers.js (bge-m3 / all-MiniLM-L6-v2, local, free)  |
-| Generation         | Ollama (qwen3:4b, local) — swappable to Claude via config |
+| Generation         | Ollama (qwen3:4b, local) - swappable to Claude via config |
 | Queue              | BullMQ on Valkey                                          |
 | Cache              | Valkey (exact-match, version-based invalidation)          |
 | GitHub integration | Octokit                                                   |
@@ -77,15 +77,15 @@ src/
 
 ## Key design decisions
 
-**Hybrid retrieval (BM25 + semantic).** Pure vector search can miss exact keyword matches ("BullMQ experience" might rank lower than semantically similar but wrong chunks). Hybrid combines keyword scoring (0.3 weight) with semantic similarity (0.7 weight) in a single Postgres query — no external search engine needed.
+**Hybrid retrieval (BM25 + semantic).** Pure vector search can miss exact keyword matches ("BullMQ experience" might rank lower than semantically similar but wrong chunks). Hybrid combines keyword scoring (0.3 weight) with semantic similarity (0.7 weight) in a single Postgres query - no external search engine needed.
 
-**Event-driven ingestion.** Upload returns immediately with a job ID. A BullMQ worker processes asynchronously: normalize → chunk → embed → transactional write. 3 retries with exponential backoff. Idempotent — re-uploading the same document replaces cleanly via deterministic document IDs and delete-before-insert inside a transaction.
+**Event-driven ingestion.** Upload returns immediately with a job ID. A BullMQ worker processes asynchronously: normalize → chunk → embed → transactional write. 3 retries with exponential backoff. Idempotent - re-uploading the same document replaces cleanly via deterministic document IDs and delete-before-insert inside a transaction.
 
-**Version-based cache invalidation.** Each tenant has a `kb_version` counter in Valkey. Cache keys include the version. When new content is ingested, the version increments — all old cached answers become unreachable instantly. No scanning, no bulk deletion. One `INCR` command.
+**Version-based cache invalidation.** Each tenant has a `kb_version` counter in Valkey. Cache keys include the version. When new content is ingested, the version increments - all old cached answers become unreachable instantly. No scanning, no bulk deletion. One `INCR` command.
 
 **Confidence threshold.** If the top retrieval score is below 0.15, the system refuses to answer instead of hallucinating. The model never generates from weak evidence.
 
-**Clean architecture.** Use cases depend on ports (interfaces), not adapters. The composition root (`main.ts`) is the only file that knows about concrete implementations. Swap LLM providers, vector stores, or queue backends by changing config — the domain and use cases compile unchanged.
+**Clean architecture.** Use cases depend on ports (interfaces), not adapters. The composition root (`main.ts`) is the only file that knows about concrete implementations. Swap LLM providers, vector stores, or queue backends by changing config - the domain and use cases compile unchanged.
 
 ## Getting started
 
