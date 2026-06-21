@@ -37,4 +37,11 @@ export interface VectorStore {
       embedding: number[];
     }[],
   ): Promise<void>;
+
+  hybridSearch(
+    tenantId: string,
+    queryEmbedding: number[],
+    queryText: string,
+    topK: number,
+  ): Promise<RetrievedChunk[]>;
 }

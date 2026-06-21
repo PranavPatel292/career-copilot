@@ -32,7 +32,12 @@ export class AnswerCareerQuery {
     const [queryVec] = await this.embedder.embed([question]);
 
     // 4. Retrieve top-k chunks scoped to this tenant (port)
-    const chunks = await this.store.search(tenantId, queryVec, 3);
+    const chunks = await this.store.hybridSearch(
+      tenantId,
+      queryVec,
+      question,
+      3,
+    );
 
     // 5. Build the two-layer prompt
     const context = chunks.length

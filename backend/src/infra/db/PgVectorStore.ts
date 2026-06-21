@@ -94,4 +94,36 @@ export class PgVectorStore implements VectorStore {
       );
     });
   }
+
+  // Job 5: TODO: add some doc
+  async hybridSearch(
+    tenantId: string,
+    queryEmbedding: number[],
+    queryText: string,
+    topK: number,
+  ): Promise<RetrievedChunk[]> {
+    const vectorStr = `[${queryEmbedding.join(",")}]`;
+
+    const results = await db
+      .select({
+        chunkId: chunks.id,
+        documentId: chunks.documentId,
+        text: chunks.text,
+        score: sql<number>`(
+        0.7 * (1 - (${chunks.embedding} <=> ${vectorStr}::vector)) +
+        0.3 * COALESCE(ts_rank(tsv, plainto_tsquery('english', ${queryText})), 0)
+      )`,
+      })
+      .from(chunks)
+      .where(eq(chunks.tenantId, tenantId))
+      .orderBy(
+        sql`(
+      0.7 * (1 - (${chunks.embedding} <=> ${vectorStr}::vector)) +
+      0.3 * COALESCE(ts_rank(tsv, plainto_tsquery('english', ${queryText})), 0)
+    ) DESC`,
+      )
+      .limit(topK);
+
+    return results;
+  }
 }
