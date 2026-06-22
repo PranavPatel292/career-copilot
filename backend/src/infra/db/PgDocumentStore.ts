@@ -1,4 +1,4 @@
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import type {
   CreateDocumentInput,
   DocumentRecord,
@@ -46,21 +46,26 @@ export class PgDocumentStore implements DocumentStore {
     // Fetch one extra to determine hasMore
     const fetchLimit = limit + 1;
 
-    let query = db
-      .select()
-      .from(documents)
-      .where(
-        cursor
-          ? and(
-              eq(documents.tenantId, tenantId),
-              lt(documents.createdAt, new Date(cursor)),
-            )
-          : eq(documents.tenantId, tenantId),
-      )
-      .orderBy(desc(documents.createdAt))
-      .limit(fetchLimit);
-
-    const rows = await query;
+    // Total is scoped to tenantId only (not the cursor), so it stays stable across pages
+    const [rows, [{ count }]] = await Promise.all([
+      db
+        .select()
+        .from(documents)
+        .where(
+          cursor
+            ? and(
+                eq(documents.tenantId, tenantId),
+                lt(documents.createdAt, new Date(cursor)),
+              )
+            : eq(documents.tenantId, tenantId),
+        )
+        .orderBy(desc(documents.createdAt))
+        .limit(fetchLimit),
+      db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(documents)
+        .where(eq(documents.tenantId, tenantId)),
+    ]);
 
     const hasMore = rows.length > limit;
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
@@ -71,6 +76,8 @@ export class PgDocumentStore implements DocumentStore {
         ? pageRows[pageRows.length - 1].createdAt.toISOString()
         : null,
       hasMore,
+      total: count,
+      totalPages: Math.ceil(count / limit),
     };
   }
 

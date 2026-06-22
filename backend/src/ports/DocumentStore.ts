@@ -37,6 +37,8 @@ export interface DocumentsPage {
   documents: DocumentRecord[];
   nextCursor: string | null;
   hasMore: boolean;
+  total: number;
+  totalPages: number;
 }
 
 export interface DocumentStore {
