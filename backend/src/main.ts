@@ -8,6 +8,7 @@ import { rateLimiter } from "./infra/http/middleware/rateLimiter.js";
 import { tenantContext } from "./infra/http/middleware/tenantContext.js";
 import { deleteRoutes } from "./infra/http/routes/deleteRoutes.js";
 import { githubRoutes } from "./infra/http/routes/githubRoutes.js";
+import { kbRoutes } from "./infra/http/routes/kbRoutes.js";
 import { queryRoutes } from "./infra/http/routes/queryRoutes.js";
 import { statusRoutes } from "./infra/http/routes/statusRoutes.js";
 import { uploadRoutes } from "./infra/http/routes/uploadRoutes.js";
@@ -60,6 +61,7 @@ async function bootstrap() {
   statusRoutes(app, queue);
   deleteRoutes(app, store, cache);
   githubRoutes(app, importGithub);
+  kbRoutes(app, documentStore);
   app.get("/health", async () => ({ status: "ok" }));
 
   const port = 3000;

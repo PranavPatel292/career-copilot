@@ -1,10 +1,10 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { ZodError, ZodSchema } from "zod";
+import { ZodError, ZodType } from "zod";
 
-export function validate(schema: ZodSchema) {
+export function validate(schema: ZodType, target: "body" | "query" = "body") {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     try {
-      req.body = schema.parse(req.body);
+      req[target] = schema.parse(req[target]);
     } catch (err) {
       if (err instanceof ZodError) {
         return reply.status(400).send({
