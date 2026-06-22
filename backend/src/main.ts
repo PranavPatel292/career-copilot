@@ -2,6 +2,7 @@ import multipart from "@fastify/multipart";
 import Fastify from "fastify";
 import { config } from "./config/index.js";
 import { ValkeyCache } from "./infra/cache/ValkeyCache.js";
+import { PgDocumentStore } from "./infra/db/PgDocumentStore.js";
 import { PgVectorStore } from "./infra/db/PgVectorStore.js";
 import { rateLimiter } from "./infra/http/middleware/rateLimiter.js";
 import { tenantContext } from "./infra/http/middleware/tenantContext.js";
@@ -33,10 +34,16 @@ async function bootstrap() {
   const cache = new ValkeyCache(config.valkeyUrl);
   const llm = new OllamaProvider(config.ollamaUrl);
   const queue = new BullMqQueue(config.valkeyUrl);
+  const documentStore = new PgDocumentStore();
   const importGithub = new ImportFromGitHub(queue);
 
-  const ingest = new IngestManualDocument(queue);
-  const processJob = new ProcessIngestionJob(embedder, store, cache);
+  const ingest = new IngestManualDocument(queue, documentStore);
+  const processJob = new ProcessIngestionJob(
+    embedder,
+    store,
+    cache,
+    documentStore,
+  );
   const answerQuery = new AnswerCareerQuery(
     embedder,
     store,
