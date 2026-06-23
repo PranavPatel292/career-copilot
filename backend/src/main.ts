@@ -14,11 +14,15 @@ import { statusRoutes } from "./infra/http/routes/statusRoutes.js";
 import { uploadRoutes } from "./infra/http/routes/uploadRoutes.js";
 import { LocalEmbeddingProvider } from "./infra/LocalEmbeddingProvider.js";
 import { OllamaProvider } from "./infra/ollama/OllamaProvider.js";
+import { BullMqDeletionQueue } from "./infra/queue/BullMqDeletionQueue.js";
 import { BullMqQueue } from "./infra/queue/BullMqQueue.js";
+import { startDeletionWorker } from "./infra/queue/DeletionWorker.js";
 import { startIngestionWorker } from "./infra/queue/IngestionWorker.js";
 import { AnswerCareerQuery } from "./use-cases/AnswerCareerQuery.js";
+import { DeleteDocument } from "./use-cases/DeleteDocument.js";
 import { ImportFromGitHub } from "./use-cases/ImportFromGitHub.js";
 import { IngestManualDocument } from "./use-cases/IngestManualDocument.js";
+import { ProcessDocumentDeletion } from "./use-cases/ProcessDocumentDeletion.js";
 import { ProcessIngestionJob } from "./use-cases/ProcessIngestionJob.js";
 
 async function bootstrap() {
@@ -35,6 +39,7 @@ async function bootstrap() {
   const cache = new ValkeyCache(config.valkeyUrl);
   const llm = new OllamaProvider(config.ollamaUrl);
   const queue = new BullMqQueue(config.valkeyUrl);
+  const deletionQueue = new BullMqDeletionQueue(config.valkeyUrl);
   const documentStore = new PgDocumentStore();
   const importGithub = new ImportFromGitHub(queue);
 
@@ -45,6 +50,8 @@ async function bootstrap() {
     cache,
     documentStore,
   );
+  const deleteDocument = new DeleteDocument(documentStore, deletionQueue);
+  const processDeletion = new ProcessDocumentDeletion(documentStore, cache);
   const answerQuery = new AnswerCareerQuery(
     embedder,
     store,
@@ -55,11 +62,12 @@ async function bootstrap() {
   );
 
   startIngestionWorker(config.valkeyUrl, processJob);
+  startDeletionWorker(config.valkeyUrl, processDeletion);
 
   uploadRoutes(app, ingest);
   queryRoutes(app, answerQuery);
   statusRoutes(app, queue);
-  deleteRoutes(app, store, cache);
+  deleteRoutes(app, deleteDocument);
   githubRoutes(app, importGithub);
   kbRoutes(app, documentStore);
   app.get("/health", async () => ({ status: "ok" }));

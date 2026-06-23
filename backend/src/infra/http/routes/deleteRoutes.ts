@@ -1,18 +1,15 @@
 import { FastifyInstance } from "fastify";
-import type { ResponseCache } from "../../../ports/ResponseCache.js";
-import type { VectorStore } from "../../../ports/VectorStore.js";
+import type { DeleteDocument } from "../../../use-cases/DeleteDocument.js";
 
 export function deleteRoutes(
   app: FastifyInstance,
-  store: VectorStore,
-  cache: ResponseCache,
+  deleteDocument: DeleteDocument,
 ) {
   app.delete("/ingest/:documentId", async (req, reply) => {
     const { documentId } = req.params as { documentId: string };
 
-    await store.deleteByDocument(req.tenantId, documentId);
-    await cache.invalidate(req.tenantId);
+    const result = await deleteDocument.execute(req.tenantId, documentId);
 
-    return reply.send({ deleted: true, documentId });
+    return reply.status(202).send(result);
   });
 }
