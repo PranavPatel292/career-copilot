@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { config } from "../../../config/index.js";
 import type { EventBus } from "../../../ports/EventBus.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -8,10 +9,14 @@ export function kbEventsRoutes(app: FastifyInstance, eventBus: EventBus) {
     reply.hijack();
     const res = reply.raw;
 
+    // reply.hijack() bypasses Fastify's normal response pipeline, which is
+    // where @fastify/cors injects Access-Control-Allow-Origin — so it has to
+    // be set by hand here, same as the SSE branch in queryRoutes.ts.
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "Access-Control-Allow-Origin": config.cors.origin,
     });
     res.write(": connected\n\n");
 
