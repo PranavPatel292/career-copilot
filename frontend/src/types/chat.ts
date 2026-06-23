@@ -1,6 +1,7 @@
 export interface Citation {
   chunkId: string;
   documentId: string;
+  title: string;
   text: string;
   score: number;
 }

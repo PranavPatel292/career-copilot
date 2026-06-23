@@ -70,6 +70,7 @@ async function bootstrap() {
     store,
     llm,
     cache,
+    documentStore,
     config.limits.maxQuestionTokens,
     config.limits.maxAnswerTokens,
   );
