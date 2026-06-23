@@ -1,9 +1,21 @@
-import type { Answer } from "../domain/entities.js";
+import type { Answer, Citation, StreamEvent } from "../domain/entities.js";
 import { checkInput } from "../domain/inputGuard.js";
 import type { EmbeddingProvider } from "../ports/EmbeddingProvider.js";
 import type { LlmProvider } from "../ports/LlmProvider.js";
 import { ResponseCache } from "../ports/ResponseCache.js";
-import type { VectorStore } from "../ports/VectorStore.js";
+import type { RetrievedChunk, VectorStore } from "../ports/VectorStore.js";
+
+const CONFIDENCE_THRESHOLD = 0.15;
+const GROUNDED_MARKER = "GROUNDED:";
+const SUGGESTED_MARKER = "SUGGESTED:";
+// Longest marker length minus 1 chars must always be held back unflushed so a
+// marker split across two streamed chunks is never partially emitted as content.
+const SAFETY_MARGIN =
+  Math.max(GROUNDED_MARKER.length, SUGGESTED_MARKER.length) - 1;
+
+type PreparedAnswer =
+  | { kind: "instant"; answer: Answer }
+  | { kind: "needs-llm"; system: string; chunks: RetrievedChunk[] };
 
 export class AnswerCareerQuery {
   constructor(
@@ -16,8 +28,41 @@ export class AnswerCareerQuery {
   ) {}
 
   async execute(tenantId: string, question: string): Promise<Answer> {
-    const CONFIDENCE_THRESHOLD = 0.15;
+    const prepared = await this.prepare(tenantId, question);
+    if (prepared.kind === "instant") {
+      return prepared.answer;
+    }
 
+    const raw = await this.llm.generate(
+      prepared.system,
+      question,
+      this.maxAnswerTokens,
+    );
+
+    const answer = this.buildAnswer(raw, prepared.chunks);
+    await this.cache.set(tenantId, question, answer);
+    return answer;
+  }
+
+  async *executeStream(
+    tenantId: string,
+    question: string,
+  ): AsyncGenerator<StreamEvent, void, unknown> {
+    const prepared = await this.prepare(tenantId, question);
+    if (prepared.kind === "instant") {
+      yield { type: "instant", answer: prepared.answer };
+      return;
+    }
+
+    yield* this.streamSplitAnswer(prepared, tenantId, question);
+  }
+
+  // Shared guard → cache check → embed → search → confidence check, used by
+  // both execute() and executeStream() so the two paths can never drift.
+  private async prepare(
+    tenantId: string,
+    question: string,
+  ): Promise<PreparedAnswer> {
     // 1. Guard (domain — no external calls)
     const guard = checkInput(question, this.maxQuestionTokens);
     if (!guard.ok) {
@@ -26,7 +71,7 @@ export class AnswerCareerQuery {
 
     // 2. Cache check
     const cached = await this.cache.get(tenantId, question);
-    if (cached) return cached;
+    if (cached) return { kind: "instant", answer: cached };
 
     // 3. Embed the question (port)
     const [queryVec] = await this.embedder.embed([question]);
@@ -39,23 +84,24 @@ export class AnswerCareerQuery {
       3,
     );
 
-    // 5. Build the two-layer prompt
-    const context = chunks.length
-      ? chunks.map((c) => c.text).join("\n")
-      : "(no relevant entries found in this knowledge base)";
-
-    // TODO: don't run the step 2 of calling LLM if no info found in KB. Instead,
-    // we can run the KB again with some modification of the search and if that fails return
-    // data to user without doing anything else.
+    // 5. Confidence check
     const topScore = chunks[0]?.score ?? 0;
     if (topScore < CONFIDENCE_THRESHOLD) {
       return {
-        grounded:
-          "I don't have enough information in the knowledge base to answer this confidently.",
-        suggested: "",
-        citations: [],
+        kind: "instant",
+        answer: {
+          grounded:
+            "I don't have enough information in the knowledge base to answer this confidently.",
+          suggested: "",
+          citations: [],
+        },
       };
     }
+
+    // 6. Build the two-layer prompt
+    const context = chunks.length
+      ? chunks.map((c) => c.text).join("\n")
+      : "(no relevant entries found in this knowledge base)";
 
     const system = `You are a career copilot. Use ONLY the CONTEXT below to answer.
 
@@ -72,28 +118,133 @@ export class AnswerCareerQuery {
 
         Do not explain your reasoning. Do not repeat the rules. Just answer directly.`;
 
-    // 6. Generate (port — doesn't know if it's Ollama or Claude)
-    const raw = await this.llm.generate(system, question, this.maxAnswerTokens);
+    return { kind: "needs-llm", system, chunks };
+  }
 
-    // 7. Parse into structured answer
-    const grounded = this.extractSection(raw, "GROUNDED:");
-    const suggested = this.extractSection(raw, "SUGGESTED:");
+  private buildAnswer(raw: string, chunks: RetrievedChunk[]): Answer {
+    const grounded = this.extractSection(raw, GROUNDED_MARKER);
+    const suggested = this.extractSection(raw, SUGGESTED_MARKER);
 
-    const answer: Answer = {
+    return {
       grounded: grounded || raw,
       suggested: suggested || "",
-      citations: chunks.map((c) => ({
-        chunkId: c.chunkId,
-        documentId: c.documentId,
-        text: c.text,
-        score: c.score,
-      })),
+      citations: this.toCitations(chunks),
     };
+  }
 
-    // 8. Cache store
+  private toCitations(chunks: RetrievedChunk[]): Citation[] {
+    return chunks.map((c) => ({
+      chunkId: c.chunkId,
+      documentId: c.documentId,
+      text: c.text,
+      score: c.score,
+    }));
+  }
+
+  // Consumes the raw LLM token stream and re-segments it into `grounded`
+  // then `suggested` SSE events in real time, given the single raw stream
+  // literally contains "GROUNDED:\n...\n\nSUGGESTED:\n...".
+  private async *streamSplitAnswer(
+    prepared: { system: string; chunks: RetrievedChunk[] },
+    tenantId: string,
+    question: string,
+  ): AsyncGenerator<StreamEvent, void, unknown> {
+    type Phase = "before-grounded" | "in-grounded" | "in-suggested";
+    let phase: Phase = "before-grounded";
+    let buffer = "";
+    let groundedText = "";
+    let suggestedText = "";
+
+    for await (const token of this.llm.generateStream(
+      prepared.system,
+      question,
+      this.maxAnswerTokens,
+    )) {
+      buffer += token;
+
+      if (phase === "before-grounded") {
+        const idx = buffer.indexOf(GROUNDED_MARKER);
+        if (idx === -1) {
+          // Could be a partial marker at the tail — hold back the safety
+          // margin, discard anything older (nothing meaningful precedes
+          // GROUNDED: in the prompt format).
+          if (buffer.length > SAFETY_MARGIN) {
+            buffer = buffer.slice(-SAFETY_MARGIN);
+          }
+          continue;
+        }
+        buffer = buffer
+          .slice(idx + GROUNDED_MARKER.length)
+          .replace(/^\n/, "");
+        phase = "in-grounded";
+        // Deliberate fallthrough into "in-grounded" below — a single chunk
+        // can contain the entire "GROUNDED:...SUGGESTED:..." string at once.
+      }
+
+      if (phase === "in-grounded") {
+        const idx = buffer.indexOf(SUGGESTED_MARKER);
+        if (idx === -1) {
+          if (buffer.length > SAFETY_MARGIN) {
+            const flush = buffer.slice(0, buffer.length - SAFETY_MARGIN);
+            buffer = buffer.slice(buffer.length - SAFETY_MARGIN);
+            if (flush) {
+              groundedText += flush;
+              yield { type: "grounded", text: flush };
+            }
+          }
+          continue;
+        }
+        const finalGroundedChunk = buffer.slice(0, idx);
+        if (finalGroundedChunk) {
+          groundedText += finalGroundedChunk;
+          yield { type: "grounded", text: finalGroundedChunk };
+        }
+        buffer = buffer
+          .slice(idx + SUGGESTED_MARKER.length)
+          .replace(/^\n/, "");
+        phase = "in-suggested";
+        // Deliberate fallthrough into "in-suggested" below, same reason.
+      }
+
+      if (phase === "in-suggested") {
+        if (buffer) {
+          suggestedText += buffer;
+          yield { type: "suggested", text: buffer };
+          buffer = "";
+        }
+      }
+    }
+
+    // End of stream — flush whatever's left in buffer per current phase.
+    if (phase === "before-grounded") {
+      // LLM never emitted "GROUNDED:" at all — treat the whole buffer as
+      // grounded content rather than silently dropping it.
+      if (buffer) {
+        groundedText += buffer;
+        yield { type: "grounded", text: buffer };
+      }
+    } else if (phase === "in-grounded") {
+      // LLM never emitted "SUGGESTED:" — flush the held-back safety margin
+      // as grounded content, matching extractSection's -1 fallback today.
+      if (buffer) {
+        groundedText += buffer;
+        yield { type: "grounded", text: buffer };
+      }
+    } else if (buffer) {
+      suggestedText += buffer;
+      yield { type: "suggested", text: buffer };
+    }
+
+    const citations = this.toCitations(prepared.chunks);
+    yield { type: "citations", citations };
+    yield { type: "done" };
+
+    const answer: Answer = {
+      grounded: groundedText || "(no answer generated)",
+      suggested: suggestedText,
+      citations,
+    };
     await this.cache.set(tenantId, question, answer);
-
-    return answer;
   }
 
   private extractSection(text: string, header: string): string {

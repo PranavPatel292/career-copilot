@@ -4,10 +4,12 @@ import { config } from "./config/index.js";
 import { ValkeyCache } from "./infra/cache/ValkeyCache.js";
 import { PgDocumentStore } from "./infra/db/PgDocumentStore.js";
 import { PgVectorStore } from "./infra/db/PgVectorStore.js";
+import { InProcessEventBus } from "./infra/events/InProcessEventBus.js";
 import { rateLimiter } from "./infra/http/middleware/rateLimiter.js";
 import { tenantContext } from "./infra/http/middleware/tenantContext.js";
 import { deleteRoutes } from "./infra/http/routes/deleteRoutes.js";
 import { githubRoutes } from "./infra/http/routes/githubRoutes.js";
+import { kbEventsRoutes } from "./infra/http/routes/kbEventsRoutes.js";
 import { kbRoutes } from "./infra/http/routes/kbRoutes.js";
 import { queryRoutes } from "./infra/http/routes/queryRoutes.js";
 import { statusRoutes } from "./infra/http/routes/statusRoutes.js";
@@ -41,6 +43,7 @@ async function bootstrap() {
   const queue = new BullMqQueue(config.valkeyUrl);
   const deletionQueue = new BullMqDeletionQueue(config.valkeyUrl);
   const documentStore = new PgDocumentStore();
+  const eventBus = new InProcessEventBus();
   const importGithub = new ImportFromGitHub(queue);
 
   const ingest = new IngestManualDocument(queue, documentStore);
@@ -49,9 +52,14 @@ async function bootstrap() {
     store,
     cache,
     documentStore,
+    eventBus,
   );
   const deleteDocument = new DeleteDocument(documentStore, deletionQueue);
-  const processDeletion = new ProcessDocumentDeletion(documentStore, cache);
+  const processDeletion = new ProcessDocumentDeletion(
+    documentStore,
+    cache,
+    eventBus,
+  );
   const answerQuery = new AnswerCareerQuery(
     embedder,
     store,
@@ -61,8 +69,8 @@ async function bootstrap() {
     config.limits.maxAnswerTokens,
   );
 
-  startIngestionWorker(config.valkeyUrl, processJob);
-  startDeletionWorker(config.valkeyUrl, processDeletion);
+  startIngestionWorker(config.valkeyUrl, processJob, documentStore, eventBus);
+  startDeletionWorker(config.valkeyUrl, processDeletion, documentStore, eventBus);
 
   uploadRoutes(app, ingest);
   queryRoutes(app, answerQuery);
@@ -70,6 +78,7 @@ async function bootstrap() {
   deleteRoutes(app, deleteDocument);
   githubRoutes(app, importGithub);
   kbRoutes(app, documentStore);
+  kbEventsRoutes(app, eventBus);
   app.get("/health", async () => ({ status: "ok" }));
 
   const port = 3000;

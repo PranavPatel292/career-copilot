@@ -29,3 +29,10 @@ export interface Answer {
   suggested: string;
   citations: Citation[];
 }
+
+export type StreamEvent =
+  | { type: "instant"; answer: Answer }
+  | { type: "grounded"; text: string }
+  | { type: "suggested"; text: string }
+  | { type: "citations"; citations: Citation[] }
+  | { type: "done" };
