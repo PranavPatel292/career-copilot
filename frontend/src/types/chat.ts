@@ -2,6 +2,7 @@ export interface Citation {
   chunkId: string;
   documentId: string;
   title: string;
+  source: "manual" | "github";
   text: string;
   score: number;
 }

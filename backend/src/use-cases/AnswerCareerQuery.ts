@@ -145,17 +145,21 @@ export class AnswerCareerQuery {
     const documents = await Promise.all(
       uniqueDocumentIds.map((id) => this.documentStore.findById(id)),
     );
-    const titleById = new Map(
-      uniqueDocumentIds.map((id, i) => [id, documents[i]?.title]),
+    const documentById = new Map(
+      uniqueDocumentIds.map((id, i) => [id, documents[i]]),
     );
 
-    return chunks.map((c) => ({
-      chunkId: c.chunkId,
-      documentId: c.documentId,
-      title: titleById.get(c.documentId) ?? "Unknown document",
-      text: c.text,
-      score: c.score,
-    }));
+    return chunks.map((c) => {
+      const document = documentById.get(c.documentId);
+      return {
+        chunkId: c.chunkId,
+        documentId: c.documentId,
+        title: document?.title ?? "Unknown document",
+        source: document?.source ?? "manual",
+        text: c.text,
+        score: c.score,
+      };
+    });
   }
 
   // Consumes the raw LLM token stream and re-segments it into `grounded`
