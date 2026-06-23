@@ -7,6 +7,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
     "@betterdb/agent-cache": "^0.7.0",
+    "@fastify/cors": "^11.2.0",
     "@fastify/multipart": "^10.0.0",
     "@fastify/rate-limit": "^11.0.0",
     "@huggingface/transformers": "^4.2.0",
