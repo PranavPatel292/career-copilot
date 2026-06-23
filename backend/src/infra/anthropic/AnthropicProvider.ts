@@ -25,4 +25,26 @@ export class AnthropicProvider implements LlmProvider {
       .map((block) => block.text)
       .join("\n");
   }
+
+  async *generateStream(
+    system: string,
+    question: string,
+    maxTokens: number,
+  ): AsyncGenerator<string, void, unknown> {
+    const stream = this.client.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: "user", content: question }],
+    });
+
+    for await (const event of stream) {
+      if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta"
+      ) {
+        yield event.delta.text;
+      }
+    }
+  }
 }
