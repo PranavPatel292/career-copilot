@@ -275,6 +275,9 @@ Question → Middleware (rate limit → validate → tenant)
 Frontend: manual fetch+ReadableStream SSE parser (EventSource can't POST or
   set custom headers) accumulates grounded/suggested text token-by-token
 ```
+## Note
+
+There are some bugs and issues that I am still working on - if you encounter them, please [open an issue](https://github.com/PranavPatel292/career-copilot/issues) or a PR, or reach out at pranav.patel292@gmail.com.
 
 ## License
 
