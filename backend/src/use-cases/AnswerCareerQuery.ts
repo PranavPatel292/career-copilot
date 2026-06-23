@@ -1,5 +1,6 @@
 import type { Answer, Citation, StreamEvent } from "../domain/entities.js";
 import { checkInput } from "../domain/inputGuard.js";
+import type { DocumentStore } from "../ports/DocumentStore.js";
 import type { EmbeddingProvider } from "../ports/EmbeddingProvider.js";
 import type { LlmProvider } from "../ports/LlmProvider.js";
 import { ResponseCache } from "../ports/ResponseCache.js";
@@ -23,6 +24,7 @@ export class AnswerCareerQuery {
     private store: VectorStore,
     private llm: LlmProvider,
     private cache: ResponseCache,
+    private documentStore: DocumentStore,
     private maxQuestionTokens: number = 500,
     private maxAnswerTokens: number = 600,
   ) {}
@@ -39,7 +41,7 @@ export class AnswerCareerQuery {
       this.maxAnswerTokens,
     );
 
-    const answer = this.buildAnswer(raw, prepared.chunks);
+    const answer = await this.buildAnswer(raw, prepared.chunks);
     await this.cache.set(tenantId, question, answer);
     return answer;
   }
@@ -121,24 +123,43 @@ export class AnswerCareerQuery {
     return { kind: "needs-llm", system, chunks };
   }
 
-  private buildAnswer(raw: string, chunks: RetrievedChunk[]): Answer {
+  private async buildAnswer(
+    raw: string,
+    chunks: RetrievedChunk[],
+  ): Promise<Answer> {
     const grounded = this.extractSection(raw, GROUNDED_MARKER);
     const suggested = this.extractSection(raw, SUGGESTED_MARKER);
 
     return {
       grounded: grounded || raw,
       suggested: suggested || "",
-      citations: this.toCitations(chunks),
+      citations: await this.toCitations(chunks),
     };
   }
 
-  private toCitations(chunks: RetrievedChunk[]): Citation[] {
-    return chunks.map((c) => ({
-      chunkId: c.chunkId,
-      documentId: c.documentId,
-      text: c.text,
-      score: c.score,
-    }));
+  // Citations need the document title for the frontend's sources footer —
+  // looked up here (not stored on the chunk) so the chunks table doesn't
+  // need to duplicate document metadata. At most 3 lookups (top-3 search).
+  private async toCitations(chunks: RetrievedChunk[]): Promise<Citation[]> {
+    const uniqueDocumentIds = [...new Set(chunks.map((c) => c.documentId))];
+    const documents = await Promise.all(
+      uniqueDocumentIds.map((id) => this.documentStore.findById(id)),
+    );
+    const documentById = new Map(
+      uniqueDocumentIds.map((id, i) => [id, documents[i]]),
+    );
+
+    return chunks.map((c) => {
+      const document = documentById.get(c.documentId);
+      return {
+        chunkId: c.chunkId,
+        documentId: c.documentId,
+        title: document?.title ?? "Unknown document",
+        source: document?.source ?? "manual",
+        text: c.text,
+        score: c.score,
+      };
+    });
   }
 
   // Consumes the raw LLM token stream and re-segments it into `grounded`
@@ -235,7 +256,7 @@ export class AnswerCareerQuery {
       yield { type: "suggested", text: buffer };
     }
 
-    const citations = this.toCitations(prepared.chunks);
+    const citations = await this.toCitations(prepared.chunks);
     yield { type: "citations", citations };
     yield { type: "done" };
 

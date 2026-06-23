@@ -16,6 +16,7 @@ export const config = {
   ollamaUrl: process.env.OLLAMA_URL ?? "http://localhost:11434",
 
   auth: { mode: (process.env.AUTH_MODE ?? "dev") as "dev" | "jwt" },
+  cors: { origin: process.env.CORS_ORIGIN ?? "http://localhost:5173" },
   rateLimit: {
     enabled: (process.env.RATE_LIMIT_ENABLED ?? "true") === "true",
     max: Number(process.env.RATE_LIMIT_MAX ?? 60),

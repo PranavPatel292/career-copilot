@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyReply } from "fastify";
+import { config } from "../../../config/index.js";
 import type { StreamEvent } from "../../../domain/entities.js";
 import { AnswerCareerQuery } from "../../../use-cases/AnswerCareerQuery.js";
 import { validate } from "../middleware/validateRequest.js";
@@ -52,10 +53,14 @@ export function queryRoutes(
 
       reply.hijack();
       const res = reply.raw;
+      // reply.hijack() bypasses Fastify's normal response pipeline, which is
+      // where @fastify/cors injects Access-Control-Allow-Origin — so it has
+      // to be set by hand here, same as kbEventsRoutes.ts.
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
+        "Access-Control-Allow-Origin": config.cors.origin,
       });
 
       const writeEvent = (event: StreamEvent) => {

@@ -1,3 +1,4 @@
+import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import Fastify from "fastify";
 import { config } from "./config/index.js";
@@ -30,6 +31,10 @@ import { ProcessIngestionJob } from "./use-cases/ProcessIngestionJob.js";
 async function bootstrap() {
   const app = Fastify({ logger: true });
 
+  await app.register(cors, {
+    origin: config.cors.origin,
+    allowedHeaders: ["Content-Type", "Accept", "Cache-Control"],
+  });
   await app.register(rateLimiter);
   await app.register(tenantContext);
   await app.register(multipart, {
@@ -44,7 +49,7 @@ async function bootstrap() {
   const deletionQueue = new BullMqDeletionQueue(config.valkeyUrl);
   const documentStore = new PgDocumentStore();
   const eventBus = new InProcessEventBus();
-  const importGithub = new ImportFromGitHub(queue);
+  const importGithub = new ImportFromGitHub(queue, documentStore);
 
   const ingest = new IngestManualDocument(queue, documentStore);
   const processJob = new ProcessIngestionJob(
@@ -65,6 +70,7 @@ async function bootstrap() {
     store,
     llm,
     cache,
+    documentStore,
     config.limits.maxQuestionTokens,
     config.limits.maxAnswerTokens,
   );

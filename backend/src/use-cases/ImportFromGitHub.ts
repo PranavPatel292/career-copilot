@@ -4,10 +4,14 @@ import {
 } from "../infra/github/GitHubConnector.js";
 
 import { deriveDocumentId } from "../domain/documentId.js";
+import type { DocumentStore } from "../ports/DocumentStore.js";
 import type { IngestionQueue } from "../ports/IngestionQueue.js";
 
 export class ImportFromGitHub {
-  constructor(private queue: IngestionQueue) {}
+  constructor(
+    private queue: IngestionQueue,
+    private documentStore: DocumentStore,
+  ) {}
 
   async execute(
     tenantId: string,
@@ -36,12 +40,21 @@ export class ImportFromGitHub {
       const title = `github:${username}/${repo.name}`;
       const documentId = deriveDocumentId(tenantId, title);
 
+      await this.documentStore.create({
+        id: documentId,
+        tenantId,
+        title,
+        source: "github",
+      });
+
       const jobId = await this.queue.enqueue({
         tenantId,
         documentId,
         title,
         text,
       });
+
+      await this.documentStore.updateStatus(documentId, "waiting", { jobId });
 
       imported.push({ repo: repo.name, jobId });
     }
