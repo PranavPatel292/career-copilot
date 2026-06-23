@@ -1,73 +1,53 @@
-# React + TypeScript + Vite
+# Career Copilot - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React/TypeScript frontend for [Career Copilot](../README.md). Two routes: a streaming chat UI and a knowledge-base dashboard, both driven live by Server-Sent Events from the backend - no polling anywhere in the app.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19 + TypeScript + Vite**
+- **Tailwind CSS v4 + shadcn/ui** (Radix primitives) - dark theme only for now; see `src/theme/`
+- **TanStack Query** - the only state layer; no Redux/Zustand
+- **React Router 7**
+- **Tabler Icons**, **dayjs**
 
-## React Compiler
+## Architecture
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+src/
+  theme/          # dark.ts (active), light.ts (not wired in), shared types.ts
+  types/          # document.ts, chat.ts, api.ts - mirror backend response shapes exactly
+  lib/             # sse.ts, formatters.ts, validators.ts, utils.ts (shadcn's cn())
+  api/             # client.ts + ingestApi/statusApi/kbApi/queryApi - plain HTTP/SSE, no React
+  hooks/           # useKnowledgeBase, useDocumentUpload, useGitHubImport, useKBEvents, useChat
+  components/
+    chat/           # ChatPage, MessageList, BotMessage, GroundedSection, CopilotTake, SourceChips, ChatInput
+    upload/         # KBPage, StatsBar, DropZone, GitHubImport, DocumentList, DocumentRow, StatusBadge
+    shared/         # Header (nav + segmented Chat/Knowledge base toggle), LoadingDots
+    ui/             # shadcn primitives (button, input, tabs, sonner, tooltip, dialog, badge)
+  App.tsx           # / redirects to /chat; /chat; /kb
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+**Layering rule:** `api/` knows HTTP and SSE only, no React Query. `hooks/` owns all React Query usage and cache-key knowledge, and wraps `api/`. `components/` render and call hooks - never `api/` directly. This keeps the SSE/transport layer swappable and testable without a `QueryClient` in scope.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Why two different SSE approaches
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+`GET /kb/events` is a plain GET with no special headers, so `hooks/useKBEvents.ts` uses the browser's native `EventSource` directly (via the `subscribeToEventSource` wrapper in `lib/sse.ts`) - free reconnection, no custom parsing needed.
+
+`POST /query` needs a request body and a custom `Accept` header, neither of which `EventSource` supports. So `lib/sse.ts` also exports a manual frame parser (`parseSseStream`) that reads a `fetch()` response's `ReadableStream` byte-by-byte, buffers partial frames across network reads, and yields complete `{event, data}` frames as they arrive. `api/queryApi.ts` also has to handle the backend's instant-JSON fallback: on a cache hit or low-confidence refusal, the server responds with plain JSON even though SSE was requested - detected by checking the response's `Content-Type`, not by trying to parse it as a stream.
+
+## Setup
+
+```bash
+yarn install
+cp .env.example .env   # VITE_API_BASE_URL=http://localhost:3000
+yarn dev                # http://localhost:5173
 ```
+
+Requires the backend running separately - see the [root README](../README.md) for backend setup. The backend's `CORS_ORIGIN` env var must match this dev server's origin (defaults to `http://localhost:5173` on both sides).
+
+## Known gaps
+
+- Dark mode only - `theme/light.ts` exists but isn't wired into `index.css`.
+- A few planned shared components (`ErrorBanner`, a `Toast` wrapper, `NavToggle` as its own file) ended up inlined into the components that use them rather than extracted - functionally complete, just not split out.
+- No tests yet (planned: Vitest + RTL + MSW).
+- Source citation chips are grouped after the grounded paragraph, not positioned inline at the exact claim - citations carry no text-offset data to place them more precisely.
