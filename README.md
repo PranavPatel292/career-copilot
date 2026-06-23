@@ -2,6 +2,35 @@
 
 A production-architected, full-stack RAG (Retrieval-Augmented Generation) career assistant that turns your real work - resume, project docs, and GitHub repositories - into a curated, queryable knowledge base with two-layer AI answers, streamed live to a React frontend.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <a href="https://github.com/user-attachments/assets/541ccfe7-c29e-42d4-bb91-aecc0e9d2abc">
+        <img src="https://github.com/user-attachments/assets/541ccfe7-c29e-42d4-bb91-aecc0e9d2abc" width="280" alt="Chat view with a grounded and suggested answer" />
+      </a>
+      <br />
+      <sub><b>Chat — grounded + suggested answer</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="https://github.com/user-attachments/assets/be7df344-b9f3-48ae-8418-0a109974292b">
+        <img src="https://github.com/user-attachments/assets/be7df344-b9f3-48ae-8418-0a109974292b" width="280" alt="Knowledge base dashboard with document list and status badges" />
+      </a>
+      <br />
+      <sub><b>Knowledge base dashboard</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <a href="https://github.com/user-attachments/assets/20db97a6-ccbe-40ca-a6cf-3c4f987b7c61">
+        <img src="https://github.com/user-attachments/assets/20db97a6-ccbe-40ca-a6cf-3c4f987b7c61" width="280" alt="Empty chat state with starter question chips" />
+      </a>
+      <br />
+      <sub><b>Chat — empty state</b></sub>
+    </td>
+  </tr>
+</table>
+
+
 ## What it does
 
 Upload your documents or connect your GitHub from the Knowledge Base page. Ask a question in the chat UI. Career Copilot retrieves the most relevant slices of your actual experience and answers in two clearly separated layers, streamed token-by-token over SSE:
