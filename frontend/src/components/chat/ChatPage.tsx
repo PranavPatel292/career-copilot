@@ -1,4 +1,3 @@
-import { IconBriefcase } from "@tabler/icons-react";
 import { useChat } from "@/hooks/useChat";
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
@@ -14,20 +13,9 @@ export function ChatPage() {
     useChat();
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-56px)] max-w-2xl flex-col">
+    <div className="mx-auto flex h-[calc(100vh-100px)] max-w-2xl flex-col">
       {messages.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-chip-bg">
-            <IconBriefcase className="size-6 text-chip-text" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-base font-medium text-foreground">
-              Career Copilot
-            </p>
-            <p className="text-xs text-tertiary">
-              Ask me anything about Pranav&apos;s experience
-            </p>
-          </div>
           <div className="flex flex-wrap justify-center gap-2">
             {STARTER_QUESTIONS.map((question) => (
               <button

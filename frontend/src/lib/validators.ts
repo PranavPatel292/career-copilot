@@ -51,10 +51,10 @@ export function validateGitHubUsername(username: string): ValidationResult {
 
 export function validateGitHubToken(token: string): ValidationResult {
   if (token.length === 0) return { valid: true };
-  if (!token.startsWith("ghp_")) {
+  if (!token.startsWith("github_")) {
     return {
       valid: false,
-      error: "Invalid token format. GitHub PATs start with ghp_.",
+      error: "Invalid token format. GitHub PATs start with github_.",
     };
   }
   return { valid: true };

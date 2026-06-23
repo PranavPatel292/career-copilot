@@ -26,7 +26,7 @@ export function ChatInput({ onSend, onStop, isStreaming, error }: ChatInputProps
 
   return (
     <div>
-      <div className="flex items-end gap-2 rounded-xl border border-border bg-card px-3.5 py-2.5">
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2.5">
         <input
           value={value}
           onChange={(event) => setValue(event.target.value)}
