@@ -276,23 +276,6 @@ Frontend: manual fetch+ReadableStream SSE parser (EventSource can't POST or
   set custom headers) accumulates grounded/suggested text token-by-token
 ```
 
-## Roadmap
-
-- [ ] Multi-tenant auth (JWT / Cognito)
-- [ ] Semantic caching on the generic inference layer
-- [ ] Reranker model (cross-encoder) after initial retrieval
-- [ ] Deep code summarization (LLM over source files)
-- [ ] PDF support for uploads
-- [ ] Eval harness for retrieval quality
-- [ ] Observability (structured logging, tracing)
-- [ ] True BM25 via a Postgres extension (e.g. ParadeDB's `pg_search`) instead of native `ts_rank`
-- [ ] HNSW index on `chunks.embedding` once chunk volume justifies it
-- [ ] Fix BullMQ's deterministic-jobId edge case - a stale terminal job in Valkey silently blocks re-ingesting the same title (workaround: `redis-cli FLUSHALL`)
-- [ ] `GitHubProvider` port - `GitHubConnector` is still constructed directly inside `ImportFromGitHub`, not injected
-- [ ] Retry button for failed manual uploads (needs raw content stored on the document row)
-- [ ] Frontend test suite (Vitest + RTL + MSW)
-- [ ] Light theme (tokens exist in `frontend/src/theme/light.ts`, not wired into `index.css`)
-
 ## License
 
 MIT
