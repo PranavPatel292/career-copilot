@@ -6,6 +6,7 @@ export const config = {
     "postgres://postgres:postgres@localhost:5432/career_copilot",
   valkeyUrl: process.env.VALKEY_URL ?? "redis://localhost:6379",
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
 
   embeddingProvider: (process.env.EMBEDDING_PROVIDER ?? "local") as
     | "local"
