@@ -89,6 +89,7 @@ backend/src/
     ├── cache/              # ValkeyCache (exact-match + version-based invalidation)
     ├── github/             # GitHubConnector (Octokit)
     ├── events/             # InProcessEventBus - powers SSE on /kb/events
+    ├── gemini/             # GeminiProvider
     └── http/               # Fastify routes + middleware
   config/         # Environment-driven wiring
   main.ts         # Composition root - the only file that imports adapters
@@ -215,6 +216,7 @@ Backend (`backend/.env`):
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/career_copilot
 VALKEY_URL=redis://localhost:6379
 ANTHROPIC_API_KEY=              # optional, for Claude
+GEMINI_API_KEY=                 # optional, for Gemini
 EMBEDDING_PROVIDER=local
 LLM_PROVIDER=ollama
 OLLAMA_URL=http://localhost:11434
