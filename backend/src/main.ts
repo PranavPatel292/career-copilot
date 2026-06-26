@@ -6,6 +6,7 @@ import { ValkeyCache } from "./infra/cache/ValkeyCache.js";
 import { PgDocumentStore } from "./infra/db/PgDocumentStore.js";
 import { PgVectorStore } from "./infra/db/PgVectorStore.js";
 import { InProcessEventBus } from "./infra/events/InProcessEventBus.js";
+import { GeminiProvider } from "./infra/gemini/GeminiProvider.js";
 import { rateLimiter } from "./infra/http/middleware/rateLimiter.js";
 import { tenantContext } from "./infra/http/middleware/tenantContext.js";
 import { deleteRoutes } from "./infra/http/routes/deleteRoutes.js";
@@ -16,7 +17,6 @@ import { queryRoutes } from "./infra/http/routes/queryRoutes.js";
 import { statusRoutes } from "./infra/http/routes/statusRoutes.js";
 import { uploadRoutes } from "./infra/http/routes/uploadRoutes.js";
 import { LocalEmbeddingProvider } from "./infra/LocalEmbeddingProvider.js";
-import { OllamaProvider } from "./infra/ollama/OllamaProvider.js";
 import { BullMqDeletionQueue } from "./infra/queue/BullMqDeletionQueue.js";
 import { BullMqQueue } from "./infra/queue/BullMqQueue.js";
 import { startDeletionWorker } from "./infra/queue/DeletionWorker.js";
@@ -44,7 +44,7 @@ async function bootstrap() {
   const embedder = new LocalEmbeddingProvider();
   const store = new PgVectorStore();
   const cache = new ValkeyCache(config.valkeyUrl);
-  const llm = new OllamaProvider(config.ollamaUrl);
+  const llm = new GeminiProvider(config.geminiApiKey);
   const queue = new BullMqQueue(config.valkeyUrl);
   const deletionQueue = new BullMqDeletionQueue(config.valkeyUrl);
   const documentStore = new PgDocumentStore();
@@ -76,7 +76,12 @@ async function bootstrap() {
   );
 
   startIngestionWorker(config.valkeyUrl, processJob, documentStore, eventBus);
-  startDeletionWorker(config.valkeyUrl, processDeletion, documentStore, eventBus);
+  startDeletionWorker(
+    config.valkeyUrl,
+    processDeletion,
+    documentStore,
+    eventBus,
+  );
 
   uploadRoutes(app, ingest);
   queryRoutes(app, answerQuery);
